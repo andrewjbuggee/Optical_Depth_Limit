@@ -22,10 +22,10 @@ clear variables
 % theory for some wavelength w and some radius r. Also, specify whether to
 % use a monodispersed distribution or a gamma droplet distribution
 
-droplet_distribution = 'mono';
-effective_radius = 10;          % microns - effective droplet radii
-wavelength = 300:20:2000;                   % nm - wavelength
-
+droplet_distribution = 'gamma';
+effective_radius = 5:5:10;                      % microns - effective droplet radii
+%wavelength = 300:20:2000;                   % nm - wavelength
+wavelength = 350:10:2300;                   % nm - wavelength range of the HySICS spectrometer
 
 mie_properties = zeros(length(wavelength),8,length(effective_radius));
 legend_str = cell(1,length(effective_radius));
@@ -82,3 +82,34 @@ absorption_coefficient = 4*pi*reshape(mie_properties(:,5,:), length(wavelength),
 G = [ones(length(index_wavelength),1), -0.85* absorption_coefficient(index_wavelength)];         % linear model
 
 d = (G' * G)^(-1) *G' * R(index_wavelength);
+
+%% How does the two stream multiple scattering solutions compare to Twomey and Bohren?
+
+% We solved the two-stream multiple scattering reflectivity of a
+% semi-infinite cloud. Twomey and Bohren do the same using H-functions to
+% solve for the absorption due to normal incident flux. These should be similar.
+
+radius2plot = 10;
+index2plot = effective_radius==radius2plot;
+
+solar_zenithAngle = 0;                  % deg
+
+abs_TB = sqrt((1 - single_scattering_albedo(:,index2plot))./(1 - g(:,index2plot).*single_scattering_albedo(:,index2plot))) .* H(cosd(solar_zenithAngle), single_scattering_albedo(:,index2plot),0)';
+
+% In a semi-infinte layer, only absorption and reflection out the cloud top
+% exist as the two photon end states.
+
+R_TB = 1 - abs_TB;
+
+% plot the results of two stream reflectivity and the reflectivity
+% estiamted using the absorption approximation by Twomey and Bohren
+
+figure; plot(wavelength, R(:,index2plot))
+hold on;
+plot(wavelength, R_TB)
+xlabel('Wavelength (nm)','Interpreter','latex')
+ylabel('Reflectivity','Interpreter','latex')
+title('Reflectivity of a semi-infinite cloud','Interpreter','latex')
+grid on; grid minor
+legend('Two-Stream','Twomey-Bohren', 'Interpreter','latex','Location','best','FontSize',18)
+set(gcf,'Position',[0 0 1200, 800])
