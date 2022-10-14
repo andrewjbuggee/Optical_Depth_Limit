@@ -22,11 +22,13 @@ clear variables
 % theory for some wavelength w and some radius r. Also, specify whether to
 % use a monodispersed distribution or a gamma droplet distribution
 
-droplet_distribution = 'mono';
-effective_radius = 5:25;                        % microns - effective droplet radii
-%wavelength = 300:20:2000;                      % nm - wavelength
+droplet_distribution = 'gamma';
+effective_radius = 10;                        % microns - effective droplet radii
+
+% --- wavelength limits are between [100,3000] nanometers ---
+wavelength = 100:10:3000;                      % nm - wavelength
 %wavelength = 350:10:2300;                       % nm - wavelength range of the HySICS spectrometer
-wavelength = 1230;                               % nm - wavelength
+%wavelength = [1000, 1100, 1200];                               % nm - wavelength
 
 mie_properties = zeros(length(wavelength),8,length(effective_radius));
 legend_str = cell(1,length(effective_radius));
@@ -40,6 +42,9 @@ end
 
 single_scattering_albedo = reshape(mie_properties(:,6,:),length(wavelength),[]);
 g = reshape(mie_properties(:,7,:), length(wavelength),[]);
+
+%% Compute the Two Stream Reflectivity
+
 
 %complex_index_refraction = mie_properties(:,4,:);
 
@@ -80,6 +85,60 @@ elseif length(wavelength)==1 && length(effective_radius)>1
 
 end
 
+
+
+%% Compare the 2-stream reflectivity with the approximations by Twomey and Bohren
+
+
+% plot the results of reflectivity versus wavelength for several
+% different droplet sizes
+
+% plot colors
+randomColors = rand(4, 3);
+
+solar_zenithAngle = 0;
+
+
+if length(wavelength)>length(effective_radius)
+
+    R_TB = 1 - sqrt((1 - single_scattering_albedo)./(1 - g.*single_scattering_albedo)) .* H(cosd(solar_zenithAngle), single_scattering_albedo,0)';
+
+
+    % Lets aslo compute the simple linear approximation for absorption by a
+    % single water droplet in the geometric optics limit
+    absorption_coefficient = 4*pi*reshape(mie_properties(:,4,:), length(wavelength),[])./(wavelength'./1e3);  % microns^(-1)
+
+    R_TB_simple = 1 - H(cosd(solar_zenithAngle), single_scattering_albedo,0)' .* sqrt((0.85 * absorption_coefficient .* effective_radius)./(1 - g.*(1 - 0.85 * effective_radius.*absorption_coefficient)));
+
+    R_TB_superSimple = 1 - 2.2 * H(cosd(solar_zenithAngle), single_scattering_albedo,0)' .* sqrt(absorption_coefficient .* effective_radius);
+
+
+
+    figure; plot(wavelength, R,'-','Color',randomColors(1,:))
+    hold on;
+    plot(wavelength, R_TB,'--','Color',randomColors(2,:))
+    plot(wavelength, R_TB_simple,'-.','Color',randomColors(3,:))
+    plot(wavelength, R_TB_superSimple, 'LineStyle',':','Color',randomColors(4,:))
+    xlabel('Wavelength (nm)','Interpreter','latex')
+    ylabel('Reflectivity','Interpreter','latex')
+    title(['Comparing Reflectivities for a semi-infinite ', droplet_distribution,'-dispersed cloud'],'Interpreter','latex')
+    grid on; grid minor
+    legend('2-Stream','Absorption w/ H-functions','$1 - \tilde{\omega} \approx 0.85 r k$','$\bar{g}$ \& $\bar{k}$','Location','best',...
+        'Interpreter','latex')
+    set(gcf,'Position',[0 0 1200, 800])
+    ylim([-1,1])
+
+elseif length(wavelength)==1 && length(effective_radius)>1
+
+    figure; plot(effective_radius, R)
+    xlabel('Effective Radius $(\mu m)$','Interpreter','latex')
+    ylabel('Reflectivity','Interpreter','latex')
+    title(['Two-Stream Reflectivity: semi-infinite ', droplet_distribution,'-dispersed cloud'],'Interpreter','latex')
+    grid on; grid minor
+    legend([num2str(wavelength),' nm'], 'Interpreter','latex','Location','best','FontSize',18)
+    set(gcf,'Position',[0 0 1200, 800])
+
+end
 
 
 %% Least Squares Solution - Can I retrieve r?
@@ -131,7 +190,7 @@ legend('Two-Stream','Twomey-Bohren', 'Interpreter','latex','Location','best','Fo
 set(gcf,'Position',[0 0 1200, 800])
 
 
-%% Plot the absorption of a semi-infinite cloud at a single wavelength
+%% Plot Twomey and Bohren's absorption approximation for a semi-infinite cloud with respect to wavelength or effective radius
 
 % Let's use the absorption approximation for a semi-infinite cloud layer
 % derived by Twomey and Bohren (equation 3, 1980). Is the absorption
@@ -140,25 +199,195 @@ set(gcf,'Position',[0 0 1200, 800])
 
 solar_zenithAngle = 0;                  % deg
 
-abs_TB = sqrt((1 - single_scattering_albedo)./(1 - g.*single_scattering_albedo)) .* H(cosd(solar_zenithAngle), single_scattering_albedo,0);
 
 
-% Lets aslo compute the simple linear approximation for absorption by a
-% single water droplet in the geometric optics limit
-absorption_coefficient = 4*pi*reshape(mie_properties(:,4,:), length(wavelength),[])./(wavelength'./1e3);  % microns^(-1)
+if length(wavelength)==1 && length(effective_radius)>1
 
-abs_TB_simple = H(cosd(solar_zenithAngle), single_scattering_albedo,0) .* sqrt((0.85 * absorption_coefficient .* effective_radius)./(1 - g.*(1 - 0.85 * effective_radius.*absorption_coefficient)));              
 
-abs_TB_superSimple = 2.2 * H(cosd(solar_zenithAngle), single_scattering_albedo,0) .* sqrt(absorption_coefficient .* effective_radius);
-% plot the results of two stream reflectivity and the reflectivity
-% estiamted using the absorption approximation by Twomey and Bohren
+    abs_TB = sqrt((1 - single_scattering_albedo)./(1 - g.*single_scattering_albedo)) .* H(cosd(solar_zenithAngle), single_scattering_albedo,0);
 
-figure; plot(effective_radius, abs_TB)
-hold on; plot(effective_radius, abs_TB_simple,'--')
-plot(effective_radius, abs_TB_superSimple, 'LineStyle',':')
-xlabel('Effective Radius $(\mu m)$','Interpreter','latex')
-ylabel('Absorption','Interpreter','latex')
-title(['Absorption by a semi-infinite cloud w/ $\lambda$ = ',num2str(wavelength),' $nm$'],'Interpreter','latex')
-legend('Absorption w/ H-functions','Simple approximation','Super Simple approx','Location','best')
-grid on; grid minor
-set(gcf,'Position',[0 0 1200, 800])
+
+    % Lets aslo compute the simple linear approximation for absorption by a
+    % single water droplet in the geometric optics limit
+    absorption_coefficient = 4*pi*reshape(mie_properties(:,4,:), length(wavelength),[])./(wavelength'./1e3);  % microns^(-1)
+
+    abs_TB_simple = H(cosd(solar_zenithAngle), single_scattering_albedo,0) .* sqrt((0.85 * absorption_coefficient .* effective_radius)./(1 - g.*(1 - 0.85 * effective_radius.*absorption_coefficient)));
+
+    abs_TB_superSimple = 2.2 * H(cosd(solar_zenithAngle), single_scattering_albedo,0) .* sqrt(absorption_coefficient .* effective_radius);
+
+
+
+    % plot the results of two stream reflectivity and the reflectivity
+    % estiamted using the absorption approximation by Twomey and Bohren
+
+    figure; plot(effective_radius, abs_TB)
+    hold on; plot(effective_radius, abs_TB_simple,'--')
+    plot(effective_radius, abs_TB_superSimple, 'LineStyle',':')
+    xlabel('Effective Radius $(\mu m)$','Interpreter','latex')
+    ylabel('Absorption','Interpreter','latex')
+    title(['Absorption by a semi-infinite cloud w/ $\lambda$ = ',num2str(wavelength),' $nm$'],'Interpreter','latex')
+    legend('Absorption w/ H-functions','Simple approximation','Super Simple approx','Location','best')
+    grid on; grid minor
+    set(gcf,'Position',[0 0 1200, 800])
+
+
+elseif length(wavelength)>1 && length(effective_radius)==1
+
+
+    abs_TB = sqrt((1 - single_scattering_albedo)./(1 - g.*single_scattering_albedo)) .* H(cosd(solar_zenithAngle), single_scattering_albedo,0)';
+
+
+    % Lets aslo compute the simple linear approximation for absorption by a
+    % single water droplet in the geometric optics limit
+    absorption_coefficient = 4*pi*reshape(mie_properties(:,4,:), length(wavelength),[])./(wavelength'./1e3);  % microns^(-1)
+
+    abs_TB_simple = H(cosd(solar_zenithAngle), single_scattering_albedo,0)' .* sqrt((0.85 * absorption_coefficient .* effective_radius)./(1 - g.*(1 - 0.85 * effective_radius.*absorption_coefficient)));
+
+    abs_TB_superSimple = 2.2 * H(cosd(solar_zenithAngle), single_scattering_albedo,0)' .* sqrt(absorption_coefficient .* effective_radius);
+
+
+    figure; plot(wavelength, abs_TB)
+    hold on; plot(wavelength, abs_TB_simple,'--')
+    plot(wavelength, abs_TB_superSimple, 'LineStyle',':')
+    xlabel('Wavelength $(nm)$','Interpreter','latex')
+    ylabel('Absorption','Interpreter','latex')
+    title(['Absorption by a semi-infinite cloud w/ $r_e$ = ',num2str(effective_radius),' $\mu m$ and $\mu_0$ = ',...
+        num2str(cosd(solar_zenithAngle))],'Interpreter','latex')
+    legend('Absorption w/ H-functions','$1 - \tilde{\omega} \approx 0.85 r k$','$\bar{g}$ \& $\bar{k}$','Location','best')
+    grid on; grid minor
+    set(gcf,'Position',[0 0 1200, 800])
+
+
+else
+
+    error('I dont know what to do!')
+
+
+end
+
+
+%% Reproducing Twomey and Bohren figure 4 where fractional absorption varies with solar zenith angle
+
+solar_zenithAngle = 0:5:85;                  % deg
+
+
+% plot colors
+randomColors = rand(length(wavelength), 3);
+
+
+if length(solar_zenithAngle)>1 && length(effective_radius)==1
+
+    abs_TB = repmat(sqrt((1 - single_scattering_albedo)./(1 - g.*single_scattering_albedo)),1,length(solar_zenithAngle))...
+        .* H(cosd(solar_zenithAngle), single_scattering_albedo,0)';
+
+
+    % Lets aslo compute the simple linear approximation for absorption by a
+    % single water droplet in the geometric optics limit
+    absorption_coefficient = 4*pi*reshape(mie_properties(:,4,:), length(wavelength),[])./(wavelength'./1e3);  % microns^(-1)
+
+    abs_TB_simple = H(cosd(solar_zenithAngle), single_scattering_albedo,0)' .* ...
+        repmat(sqrt((0.85 * absorption_coefficient .* effective_radius)./(1 - g.*(1 - 0.85 * effective_radius.*absorption_coefficient))), 1, length(solar_zenithAngle));
+
+
+    abs_TB_superSimple = 2.2 * H(cosd(solar_zenithAngle), single_scattering_albedo,0)' .* ...
+        repmat(sqrt(absorption_coefficient .* effective_radius),1,length(solar_zenithAngle));
+
+
+    figure;
+    legend_str = cell(1,length(wavelength));
+
+    for ww = 1:length(wavelength)
+
+        plot(cosd(solar_zenithAngle), abs_TB_superSimple(ww,:), 'LineStyle','-','Color',randomColors(ww,:))
+        hold on
+        legend_str{ww} = [num2str(wavelength(ww)/1e3), ' $\mu m$'];
+    end
+
+    xlabel('$\mu_0$','Interpreter','latex')
+    ylabel('Absorption','Interpreter','latex')
+    title(['Absorption by a semi-infinite cloud w/ $r_e$ = ',num2str(effective_radius)],'Interpreter','latex')
+    legend(legend_str,'Location','best','Interpreter','latex')
+    grid on; grid minor
+    set(gcf,'Position',[0 0 1200, 800])
+
+
+else
+
+    error('I dont know what to do!')
+
+end
+
+
+
+
+%% Reproducing Twomey and Bohren Figure 3 - plotting the single scattering absorption approximation
+
+
+% plot colors
+randomColors = rand(length(wavelength), 3);
+
+
+if length(effective_radius)>1 
+
+
+    % Lets aslo compute the simple linear approximation for absorption by a
+    % single water droplet in the geometric optics limit
+    absorption_coefficient = 4*pi*reshape(mie_properties(:,4,:), length(wavelength),[])./(wavelength'./1e3);        % microns^(-1)
+
+    single_scattering_absorption = 0.85 * repmat(effective_radius,length(wavelength),1).*absorption_coefficient;
+
+
+    figure;
+    legend_str = cell(1,length(wavelength));
+
+    for ww = 1:length(wavelength)
+
+        semilogy(effective_radius, single_scattering_absorption(ww,:), 'LineStyle','-','Color',randomColors(ww,:))
+        hold on
+        legend_str{ww} = [num2str(wavelength(ww)/1e3), ' $\mu m$'];
+    end
+
+    xlabel('Effective Radius $(\mu m)$','Interpreter','latex')
+    ylabel('$ 1 - \tilde{\omega}$','Interpreter','latex')
+    title(['Single Particle Absorption'],'Interpreter','latex')
+    legend(legend_str,'Location','best','Interpreter','latex')
+    grid on; grid minor
+    set(gcf,'Position',[0 0 1200, 800])
+
+
+else
+
+    error('I dont know what to do!')
+
+end
+
+
+%% For an isotropic cloud, the fractional absorption only depends on single scattering albedo and the source direction
+
+% If I compute the fractional absorption over this region, does the
+% magnitude ever eclipse 1?
+
+solar_zenithAngle = 0;
+
+if length(wavelength)>1
+
+
+    abs_TB_isotropic = sqrt(1 - single_scattering_albedo) .* H(cosd(solar_zenithAngle), single_scattering_albedo,0)';
+    
+    abs_TB_anisotropic = sqrt((1 - single_scattering_albedo)./(1 - g.*single_scattering_albedo)) .* H(cosd(solar_zenithAngle), single_scattering_albedo,0)';
+
+
+
+    figure; 
+    plot(wavelength, abs_TB_isotropic)
+    hold on; plot(wavelength, abs_TB_anisotropic)
+    xlabel('Wavelength $(nm)$','Interpreter','latex')
+    ylabel('Absorption','Interpreter','latex')
+    title(['Absorption by a semi-infinite cloud w/ $r_e$ = ',num2str(effective_radius),' $\mu m$ and $\mu_0$ = ',...
+        num2str(cosd(solar_zenithAngle))],'Interpreter','latex')
+    legend('Isotropic Cloud','Anisotropic Cloud')
+    grid on; grid minor
+    set(gcf,'Position',[0 0 1200, 800])
+
+
+end
