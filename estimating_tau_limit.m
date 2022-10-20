@@ -26,9 +26,9 @@ droplet_distribution = 'gamma';
 effective_radius = 10;                        % microns - effective droplet radii
 
 % --- wavelength limits are between [100,3000] nanometers ---
-wavelength = 100:10:3000;                      % nm - wavelength
+%wavelength = 100:10:3000;                      % nm - wavelength
 %wavelength = 350:10:2300;                       % nm - wavelength range of the HySICS spectrometer
-%wavelength = [1000, 1100, 1200];                               % nm - wavelength
+wavelength = [1000, 1100, 1200];                               % nm - wavelength
 
 mie_properties = zeros(length(wavelength),8,length(effective_radius));
 legend_str = cell(1,length(effective_radius));
@@ -56,8 +56,10 @@ g = reshape(mie_properties(:,7,:), length(wavelength),[]);
 
 
 % ----- Using the mie estimated values for single scattering ----
-R = (sqrt(1 - g.*single_scattering_albedo) - sqrt(1 - single_scattering_albedo))./...
+% R_top is the amount of irradiance reflected out the top of the cloud
+R_top = (sqrt(1 - g.*single_scattering_albedo) - sqrt(1 - single_scattering_albedo))./...
     (sqrt(1 - g.*single_scattering_albedo) + sqrt(1 - single_scattering_albedo));
+
 
 
 % plot the results of reflectivity versus wavelength for several
@@ -65,7 +67,7 @@ R = (sqrt(1 - g.*single_scattering_albedo) - sqrt(1 - single_scattering_albedo))
 
 if length(wavelength)>length(effective_radius)
 
-    figure; plot(wavelength, R)
+    figure; plot(wavelength, R_top)
     xlabel('Wavelength (nm)','Interpreter','latex')
     ylabel('Reflectivity','Interpreter','latex')
     title(['Two-Stream Reflectivity: semi-infinite ', droplet_distribution,'-dispersed cloud'],'Interpreter','latex')
@@ -75,7 +77,7 @@ if length(wavelength)>length(effective_radius)
 
 elseif length(wavelength)==1 && length(effective_radius)>1
 
-    figure; plot(effective_radius, R)
+    figure; plot(effective_radius, R_top)
     xlabel('Effective Radius $(\mu m)$','Interpreter','latex')
     ylabel('Reflectivity','Interpreter','latex')
     title(['Two-Stream Reflectivity: semi-infinite ', droplet_distribution,'-dispersed cloud'],'Interpreter','latex')
@@ -114,7 +116,7 @@ if length(wavelength)>length(effective_radius)
 
 
 
-    figure; plot(wavelength, R,'-','Color',randomColors(1,:))
+    figure; plot(wavelength, R_top,'-','Color',randomColors(1,:))
     hold on;
     plot(wavelength, R_TB,'--','Color',randomColors(2,:))
     plot(wavelength, R_TB_simple,'-.','Color',randomColors(3,:))
@@ -130,7 +132,7 @@ if length(wavelength)>length(effective_radius)
 
 elseif length(wavelength)==1 && length(effective_radius)>1
 
-    figure; plot(effective_radius, R)
+    figure; plot(effective_radius, R_top)
     xlabel('Effective Radius $(\mu m)$','Interpreter','latex')
     ylabel('Reflectivity','Interpreter','latex')
     title(['Two-Stream Reflectivity: semi-infinite ', droplet_distribution,'-dispersed cloud'],'Interpreter','latex')
@@ -156,7 +158,7 @@ absorption_coefficient = 4*pi*reshape(mie_properties(:,4,:), length(wavelength),
 
 G = [ones(length(index_wavelength),1), -0.85* absorption_coefficient(index_wavelength)];         % linear model
 
-d = (G' * G)^(-1) *G' * R(index_wavelength);
+d = (G' * G)^(-1) *G' * R_top(index_wavelength);
 
 %% How does the two stream multiple scattering solutions compare to Twomey and Bohren?
 
@@ -179,7 +181,7 @@ R_TB = 1 - abs_TB;
 % plot the results of two stream reflectivity and the reflectivity
 % estiamted using the absorption approximation by Twomey and Bohren
 
-figure; plot(wavelength, R(:,index2plot))
+figure; plot(wavelength, R_top(:,index2plot))
 hold on;
 plot(wavelength, R_TB)
 xlabel('Wavelength (nm)','Interpreter','latex')
@@ -391,3 +393,37 @@ if length(wavelength)>1
 
 
 end
+
+
+%% --- Compute the upward irradiance at different tau depths
+
+% K is defined on page 265 of Bohren and Clothiaux
+K = sqrt((1 - single_scattering_albedo).*(1 - g.*single_scattering_albedo));
+
+% Compute the upward moving light normalized by the incident light at
+% different tau levels
+R_up = @(tau) repmat(R_top,1,length(tau)).*exp(-K*tau);
+
+% defind an optical depth vector
+tau = 0:0.1:50;                     % optical depth
+
+figure; plot(R_up(tau),tau)
+set(gca,'YDir','reverse')
+grid on; grid minor
+xlabel('$F_{\uparrow}(\tau)/F_{\downarrow}(\tau=0)$','Interpreter','latex')
+ylabel('$\tau$','Interpreter','latex')
+title('Fraction of incident light moving upwards at different $\tau$','Interpreter','latex')
+
+% let's plot the derivative of the fraction of upward moving light with
+% respect to tau
+figure; plot(repmat(R_top.*K,1,length(tau)).*exp(-K*tau),tau)
+set(gca,'YDir','reverse')
+grid on; grid minor
+xlabel('$\partial R_{\uparrow}(\tau)/ \partial\tau$','Interpreter','latex')
+ylabel('$\tau$','Interpreter','latex')
+title('Distribution of upwards moving light w.r.t. $\tau$','Interpreter','latex')
+legend(string(wavelength),'location','best','Interpreter','latex')
+
+
+
+
